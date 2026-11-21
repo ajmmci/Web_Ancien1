@@ -195,6 +195,31 @@ function writeMapDelta(bytes, map, deltas, result) {
   });
 }
 
+// Ecriture de cellules a une valeur BRUTE (octets) : { map, cells: [indices] (tout si absent), raw: entier }.
+// Utilise par le Pop & Bang : on rejoue exactement les octets validees sur le fichier de reference,
+// portable sur tous les SW (memes formules / dimensions). Le reste du fichier n'est pas touche.
+function writeCellsRaw(bytes, map, cells, raw, result, allowRestricted, floor) {
+  if (isForbidden(map) && (!allowRestricted || isImmobilizer(map))) {
+    throw new Error(`${map.title} : ecriture refusee (categorie ${map.categories.join(', ')})`);
+  }
+  if (!Number.isInteger(raw)) throw new Error(`${map.title} : valeur brute non entiere`);
+  const count = map.rows * map.cols;
+  const list = cells ?? Array.from({ length: count }, (_, i) => i);
+  const { factor, offset } = scaling(map);
+  for (const i of list) {
+    if (!Number.isInteger(i) || i < 0 || i >= count) throw new Error(`${map.title} : cellule ${i} hors table`);
+    const before = readRaw(bytes, map, i);
+    // floor : on remonte la cellule a "au moins" raw, sans jamais la raccourcir (duree du Pop & Bang).
+    const target = floor ? Math.max(before, raw) : raw;
+    if (before === target) continue;
+    writeRaw(bytes, map, i, target);
+    result.changes.push({
+      map: map.title, index: i, file_offset: elementOffset(map, i),
+      before: before * factor + offset, after: target * factor + offset, units: map.units,
+    });
+  }
+}
+
 // Une table n'a de sens qu'avec ses axes : si ceux du fichier different de la reference, on refuse.
 function checkAxes(bytes, def, axes) {
   for (const axis of axes ?? []) {
@@ -249,6 +274,8 @@ export function applyRecipes(original, def, engine, recipes) {
       const map = findMap(def, title);
       if (write.delta) {
         writeMapDelta(bytes, map, write.delta, result); // ecriture relative (ex. limiteur +N tr/min)
+      } else if (write.raw !== undefined) {
+        writeCellsRaw(bytes, map, write.cells, write.raw, result, recipe.allow_restricted, write.floor); // cellules a valeur brute (Pop & Bang)
       } else {
         checkAxes(bytes, def, write.axes);
         writeMap(bytes, map, write.values, result, recipe.allow_restricted);
