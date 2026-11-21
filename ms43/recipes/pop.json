@@ -1,0 +1,139 @@
+[
+    {
+        "id":  "pop_bang",
+        "type":  "pop",
+        "name":  "Pop \u0026 Bang",
+        "description":  "Maintient du carburant en deceleration et retarde l allumage a l echappement (pop \u0026 bang / crackle). Usage hors route / competition.",
+        "software":  [
+                         "430037",
+                         "430055",
+                         "430056",
+                         "430064",
+                         "430066",
+                         "430069"
+                     ],
+        "engines":  [
+                        "B22",
+                        "B25",
+                        "B30"
+                    ],
+        "source":  "B30 / 430069 : WinOLS POP (reglages isoles un par un)",
+        "agg":  {
+                    "maps":  [
+                                 "ip_iga_pu__n__tco",
+                                 "ip_iga_puc__n__tco"
+                             ],
+                    "cells":  [
+                                  2,
+                                  3,
+                                  6,
+                                  7,
+                                  10,
+                                  11,
+                                  14,
+                                  15,
+                                  18,
+                                  19,
+                                  22,
+                                  23
+                              ],
+                    "crans":  [
+                                  {
+                                      "deg":  "0",
+                                      "raw":  63
+                                  },
+                                  {
+                                      "deg":  "-5",
+                                      "raw":  49
+                                  },
+                                  {
+                                      "deg":  "-10",
+                                      "raw":  36
+                                  },
+                                  {
+                                      "deg":  "-15",
+                                      "raw":  23
+                                  },
+                                  {
+                                      "deg":  "-20",
+                                      "raw":  9
+                                  },
+                                  {
+                                      "deg":  "-23",
+                                      "raw":  1
+                                  }
+                              ]
+                },
+        "rpm":  {
+                    "mapAll":  [
+                                   "ip_n_min_puc__tco",
+                                   "ip_n_min_accin_puc__tco"
+                               ],
+                    "mapAc":  [
+                                  "ip_n_min_accin_puc__tco"
+                              ],
+                    "cells":  [
+                                  4,
+                                  5
+                              ],
+                    "crans":  [
+                                  {
+                                      "rpm":  2500,
+                                      "raw":  78
+                                  },
+                                  {
+                                      "rpm":  3000,
+                                      "raw":  93
+                                  },
+                                  {
+                                      "rpm":  4000,
+                                      "raw":  125
+                                  },
+                                  {
+                                      "rpm":  5000,
+                                      "raw":  156
+                                  },
+                                  {
+                                      "rpm":  7000,
+                                      "raw":  218
+                                  }
+                              ]
+                },
+        "dur":  {
+                    "maps":  [
+                                 "ip_t_puc_deacc_1__n__maf_mmv",
+                                 "ip_t_puc_deacc_2__n__maf_mmv",
+                                 "ip_t_puc_deacc_3__n__maf_mmv",
+                                 "ip_t_puc_deacc_4__n__maf_mmv",
+                                 "ip_t_puc_deacc_5__n__maf_mmv",
+                                 "c_t_puc_deacc_vs"
+                             ],
+                    "crans":  [
+                                  {
+                                      "sec":  1,
+                                      "raw":  5859
+                                  },
+                                  {
+                                      "sec":  2,
+                                      "raw":  11718
+                                  },
+                                  {
+                                      "sec":  3,
+                                      "raw":  17578
+                                  },
+                                  {
+                                      "sec":  4,
+                                      "raw":  23437
+                                  },
+                                  {
+                                      "sec":  6,
+                                      "raw":  35156
+                                  },
+                                  {
+                                      "inf":  true,
+                                      "raw":  65535
+                                  }
+                              ]
+                }
+    }
+]
