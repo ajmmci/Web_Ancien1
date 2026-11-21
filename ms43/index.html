@@ -46,6 +46,9 @@
   .banner { border-radius: 10px; padding: 11px 14px; font-size: 13.5px; margin-top: 4px; }
   .banner.err { background: var(--err-bg); color: var(--err); }
   .banner.warn { background: var(--warn-bg); color: var(--warn); }
+  .banner.ok { background: var(--ok-bg); color: var(--ok); }
+  .banner > div + div { margin-top: 6px; }
+  .banner code { font-size: 12px; }
   label.rec { display: flex; gap: 11px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
   label.rec:first-of-type { border-top: 0; }
   label.rec input { margin-top: 3px; width: 16px; height: 16px; flex: none; }
@@ -163,6 +166,26 @@ window.AJM = (function () {
       disclaimer_text: 'Je comprends que ces modifications sont appliquées sous ma seule responsabilité, à mes risques, et qu\'AJM ne peut être tenu responsable d\'éventuels dommages.',
       disclaimer_need: 'Coche la case de responsabilité pour continuer.',
       orig_note: '⚠ Les modifications ne fonctionnent que sur une <b>lecture d\'origine</b> (fichier d\'usine non modifié). N\'importe pas un fichier déjà retouché.',
+      k_origin: 'Origine',
+      orig_checking: 'vérification…',
+      orig_stock_badge: 'lecture d\'origine',
+      orig_stock: function (l) { return 'Identique à la lecture d\'usine <b>' + l + '</b> (programme et calibration).'; },
+      orig_modified_badge: 'fichier modifié',
+      orig_modified: 'Le programme du calculateur a été patché&nbsp;: ce n\'est pas une lecture d\'origine.',
+      orig_modified_client: 'Ce fichier a déjà été modifié. Les modifications sont prévues pour une lecture d\'origine&nbsp;: le résultat n\'est pas garanti. Importe de préférence la lecture d\'origine de ton calculateur.',
+      orig_patches: function (l) { return 'Patch(s) reconnu(s)&nbsp;: ' + l + '.'; },
+      orig_cal_same: function (l) { return 'Calibration identique à l\'usine (' + l + ').'; },
+      orig_cal_badge: 'non confirmée',
+      orig_cal_admin: 'Programme d\'origine, mais calibration absente de la base d\'usine&nbsp;: fichier retouché ou variante non répertoriée.',
+      orig_cal_client: 'Calibration non reconnue&nbsp;: soit le fichier a été retouché, soit c\'est une variante d\'usine absente de notre base. AJM vérifiera ta lecture.',
+      orig_nearest: function (l, n) { return 'Lecture d\'usine la plus proche&nbsp;: <b>' + l + '</b> — ' + n + ' octet(s) différent(s).'; },
+      orig_maps: function (n, l) { return n + ' cartographie(s) différente(s)&nbsp;: ' + l; },
+      orig_outside: function (n) { return n + ' octet(s) hors cartographie (sommes de contrôle, identifiants…).'; },
+      orig_confirm_modified: 'Ce fichier n\'est pas une lecture d\'origine : il a déjà été modifié.\n\nLes modifications sont prévues pour une lecture d\'origine, le résultat n\'est pas garanti.\n\nVeux-tu quand même continuer ?',
+      orig_confirm_cal: 'La calibration de ce fichier ne correspond à aucune lecture d\'origine connue : il a peut-être déjà été modifié.\n\nVeux-tu quand même continuer ?',
+      orig_cancelled: 'demande annulée',
+      orig_noref_badge: 'non vérifiable',
+      orig_noref: function (s) { return 'Pas encore de lecture d\'usine de référence pour le SW ' + s + '&nbsp;: l\'origine ne peut pas être vérifiée.'; },
       applied_ok: 'Fichier téléchargé',
       applied_detail: function (n) { return n + ' cartographies modifiées'; },
       report_line: function (eng, n) { return 'Moteur <b>' + eng + '</b> — <b>' + n + '</b> cartographies modifiées. Le fichier a été téléchargé.'; },
@@ -233,6 +256,26 @@ window.AJM = (function () {
       disclaimer_text: 'I understand these modifications are applied under my sole responsibility, at my own risk, and that AJM cannot be held liable for any damage.',
       disclaimer_need: 'Tick the liability box to continue.',
       orig_note: '⚠ Modifications only work on a <b>stock original read</b> (unmodified factory file). Don\'t import a file that has already been tuned.',
+      k_origin: 'Origin',
+      orig_checking: 'checking…',
+      orig_stock_badge: 'stock read',
+      orig_stock: function (l) { return 'Identical to the factory read <b>' + l + '</b> (program and calibration).'; },
+      orig_modified_badge: 'modified file',
+      orig_modified: 'The ECU program has been patched&nbsp;: this is not a stock read.',
+      orig_modified_client: 'This file has already been modified. Modifications are designed for a stock read&nbsp;: the result is not guaranteed. Preferably import your ECU\'s original read.',
+      orig_patches: function (l) { return 'Recognised patch(es)&nbsp;: ' + l + '.'; },
+      orig_cal_same: function (l) { return 'Calibration identical to factory (' + l + ').'; },
+      orig_cal_badge: 'not confirmed',
+      orig_cal_admin: 'Stock program, but the calibration is not in the factory database&nbsp;: tuned file or unlisted variant.',
+      orig_cal_client: 'Calibration not recognised&nbsp;: either the file has been tuned, or it is a factory variant missing from our database. AJM will check your read.',
+      orig_nearest: function (l, n) { return 'Closest factory read&nbsp;: <b>' + l + '</b> — ' + n + ' byte(s) differ.'; },
+      orig_maps: function (n, l) { return n + ' map(s) differ&nbsp;: ' + l; },
+      orig_outside: function (n) { return n + ' byte(s) outside any map (checksums, identifiers…).'; },
+      orig_confirm_modified: 'This file is not a stock read: it has already been modified.\n\nModifications are designed for a stock read, the result is not guaranteed.\n\nDo you still want to continue?',
+      orig_confirm_cal: 'This file\'s calibration does not match any known stock read: it may already have been modified.\n\nDo you still want to continue?',
+      orig_cancelled: 'request cancelled',
+      orig_noref_badge: 'cannot check',
+      orig_noref: function (s) { return 'No factory reference read for SW ' + s + ' yet&nbsp;: the origin cannot be checked.'; },
       applied_ok: 'File downloaded',
       applied_detail: function (n) { return n + ' maps modified'; },
       report_line: function (eng, n) { return 'Engine <b>' + eng + '</b> — <b>' + n + '</b> maps modified. The file has been downloaded.'; },
@@ -329,7 +372,9 @@ window.AJM = (function () {
         <span id="vEngine"></span>
         <select id="engineSel" class="hidden"></select>
       </div>
+      <div class="k" data-i18n="k_origin">Origine</div><div class="v" id="vOrig"></div>
     </div>
+    <div id="origBanner" style="margin-top:12px"></div>
     <div id="detectBanner"></div>
   </section>
 
@@ -378,6 +423,7 @@ window.AJM = (function () {
 
 <script type="module">
 import { IMAGE_SIZE, ENGINES, detectSoftware, detectEngine, applyRecipes } from './src/ms43.js';
+import { checkOrigin, changedMaps } from './src/origin.js';
 
 // ================== CONFIGURATION ENVOI MAIL (mode client) ==================
 // Utilisé uniquement en mode client (mot de passe CLIENT). En mode admin (AJM), rien n'est envoyé.
@@ -400,6 +446,7 @@ function renderMode() {
   $('noteSend').classList.toggle('hidden', mode !== 'client');     // mention "envoi à AJM" : client seulement
   $('disclaimer').classList.toggle('hidden', mode !== 'client');   // case responsabilite : client seulement
   $('origNote').classList.toggle('hidden', mode !== 'client');     // note "fichier d'origine" : client seulement
+  renderOrigin();                                                  // detail de l'origine : admin seulement
   renderHistory();
 }
 
@@ -448,6 +495,7 @@ const recDesc = (r) => (window.AJM.lang === 'en' && RDESC_EN[r.description]) || 
 
 let bytes = null, fileName = '', originalFile = null, sw = null, allRecipes = [], shown = [], lastOutput = null;
 let engineChoice = '', lastResult = null, lastEngine = '', outName = '';
+let origin = null, originPromise = Promise.resolve(), originToken = 0;
 
 // --- Chargement du catalogue de recettes (manifeste extensible) ---
 const catalogue = (async () => {
@@ -477,7 +525,93 @@ async function load(file) {
   $('reportCard').classList.add('hidden');
   $('applyMsg').textContent = '';
   $('sendMsg').textContent = '';
+  origin = null;
   showDetection();
+  originPromise = runOrigin();
+}
+
+// --- Reconnaissance lecture d'origine (refs/origin.json, voir src/origin.js) ---
+const defCache = {};
+const loadDef = (d) => (defCache[d] ??= fetch(`defs/${d}.json`).then((r) => r.json()));
+
+async function runOrigin() {
+  const token = ++originToken;
+  if (!sw || sw.status !== 'known') return;
+  let res;
+  try {
+    res = await checkOrigin(bytes, sw.software);
+    const def = sw.variants[0];
+    // Patchs des recettes deja presents dans le fichier (tous les octets "apres" en place).
+    const recs = await catalogue;
+    res.recipePatches = recs.filter((r) => r.patch && r.software.includes(def)
+      && r.patch.some(([, b, a]) => b !== a) && r.patch.every(([o, , a]) => bytes[o] === a));
+    if (res.nearest && res.nearest.count) {
+      try { res.maps = changedMaps(await loadDef(def), res.nearest.offsets); } catch { /* detail facultatif */ }
+    }
+  } catch (e) {
+    console.warn('[MS43] Verification origine :', e);
+    res = { status: 'no_ref' };
+  }
+  if (token !== originToken) return; // un autre fichier a ete importe entre-temps
+  origin = res;
+  renderOrigin();
+}
+
+function originPatches(o) {
+  return [...(o.signatures || []), ...(o.recipePatches || []).map(recName)];
+}
+
+function renderOrigin() {
+  const v = $('vOrig'), box = $('origBanner');
+  if (!sw || sw.status !== 'known') { v.textContent = '—'; box.innerHTML = ''; return; }
+  if (!origin) { v.innerHTML = badge(T('orig_checking'), 'warn'); box.innerHTML = ''; return; }
+  const o = origin, admin = mode === 'admin', lines = [];
+  let kind = 'warn';
+  if (o.status === 'stock') {
+    v.innerHTML = badge(T('orig_stock_badge'), 'ok');
+    lines.push(T('orig_stock', esc(o.match.label)));
+    kind = 'ok';
+  } else if (o.status === 'no_ref') {
+    v.innerHTML = badge(T('orig_noref_badge'), 'warn');
+    lines.push(T('orig_noref', esc(sw.software)));
+  } else {
+    const modified = o.status === 'modified';
+    v.innerHTML = badge(T(modified ? 'orig_modified_badge' : 'orig_cal_badge'), modified ? 'err' : 'warn');
+    if (!admin) {
+      lines.push(T(modified ? 'orig_modified_client' : 'orig_cal_client'));
+      if (modified) kind = 'err';
+    } else {
+      lines.push(T(modified ? 'orig_modified' : 'orig_cal_admin'));
+      const patches = originPatches(o);
+      if (patches.length) lines.push(T('orig_patches', esc(patches.join(', '))));
+      if (o.match) lines.push(T('orig_cal_same', esc(o.match.label)));
+      if (o.nearest) {
+        lines.push(T('orig_nearest', esc(o.nearest.label), nf(o.nearest.count)));
+        if (o.maps && o.maps.titles.length) {
+          const shownMaps = o.maps.titles.slice(0, 40).map((t) => `<code>${esc(t)}</code>`).join(', ');
+          const more = o.maps.titles.length > 40 ? ' ' + T('more', o.maps.titles.length - 40) : '';
+          lines.push(T('orig_maps', o.maps.titles.length, shownMaps + more));
+        }
+        if (o.maps && o.maps.outside) lines.push(T('orig_outside', o.maps.outside));
+      }
+    }
+  }
+  box.innerHTML = `<div class="banner ${kind}">${lines.map((l) => `<div>${l}</div>`).join('')}</div>`;
+}
+
+// Resume texte (FR) de l'origine, joint a la demande envoyee a AJM.
+function originSummary() {
+  const o = origin;
+  if (!o) return 'non vérifiée';
+  if (o.status === 'stock') return `Lecture d'origine (${o.match.label})`;
+  if (o.status === 'no_ref') return `Non vérifiable (pas de référence pour le SW ${sw.software})`;
+  const parts = [o.status === 'modified' ? 'MODIFIÉ : programme patché' : 'Calibration non reconnue (programme d\'origine)'];
+  const patches = originPatches(o);
+  if (patches.length) parts.push('patchs : ' + patches.join(', '));
+  if (o.match) parts.push(`calibration d'usine ${o.match.label}`);
+  if (o.nearest) parts.push(`plus proche : ${o.nearest.label}, ${o.nearest.count} octets différents`);
+  if (o.maps && o.maps.titles.length) parts.push(`cartos : ${o.maps.titles.slice(0, 30).join(', ')}${o.maps.titles.length > 30 ? '…' : ''}`);
+  return parts.join(' — ');
 }
 
 const badge = (text, kind) => `<span class="tag ${kind}">${text}</span>`;
@@ -487,6 +621,7 @@ function showDetection() {
   $('vSize').textContent = T('bytes', nf(bytes.length));
   const banner = $('detectBanner');
   banner.innerHTML = '';
+  renderOrigin();
 
   if (sw.status === 'bad_size') {
     $('vSw').innerHTML = badge(T('bad_size_badge'), 'err');
@@ -660,6 +795,7 @@ async function sendOriginal(file, meta) {
   fd.append('Version_SW', meta.sw);
   fd.append('Base_moteur', meta.engine);
   fd.append('Modifications', meta.mods);
+  fd.append('Origine', meta.origin);
   fd.append('Date', meta.date);
   fd.append('attachment', file, meta.file);
   try {
@@ -689,6 +825,18 @@ $('apply').addEventListener('click', async () => {
   if (chosen.length === 0) { $('applyMsg').innerHTML = badge(T('need_one'), 'warn'); return; }
   // Mode client : la case de responsabilite doit etre cochee avant tout telechargement/envoi.
   if (mode === 'client' && !$('disclaimerChk').checked) { $('applyMsg').innerHTML = badge(T('disclaimer_need'), 'warn'); return; }
+  // Mode client : fichier non reconnu comme lecture d'origine -> avertissement, le client choisit de continuer ou non.
+  let originForced = false;
+  if (mode === 'client') {
+    await originPromise;
+    if (origin && (origin.status === 'modified' || origin.status === 'cal_unknown')) {
+      if (!confirm(T(origin.status === 'modified' ? 'orig_confirm_modified' : 'orig_confirm_cal'))) {
+        $('applyMsg').innerHTML = badge(T('orig_cancelled'), 'warn');
+        return;
+      }
+      originForced = true;
+    }
+  }
   const engine = $('engineSel').value;
   const def = sw.variants[0];
   try {
@@ -708,7 +856,8 @@ $('apply').addEventListener('click', async () => {
       addHistory(entry);
       if (originalFile) {
         $('sendMsg').innerHTML = badge(T('sending'), 'warn');
-        const res = await sendOriginal(originalFile, { file: fileName, sw: sw.software, engine, mods: modsNames, date: entry.date });
+        await originPromise; // la verification d'origine accompagne la demande
+        const res = await sendOriginal(originalFile, { file: fileName, sw: sw.software, engine, mods: modsNames, date: entry.date, origin: originSummary() + (originForced ? ' — le client a confirmé vouloir continuer malgré l\'avertissement' : '') });
         $('sendMsg').innerHTML = badge(res.ok ? T('sent') : T('send_fail'), res.ok ? 'ok' : 'err');
         if (!res.ok) console.warn('[MS43] Envoi à AJM :', res.msg);
       }
