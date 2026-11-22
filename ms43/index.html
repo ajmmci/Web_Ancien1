@@ -4,9 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Service MS43</title>
-<style>
-  /* Palette alignee sur le site AJM : fond clair, orange #FF7500 / bleu #007BFF. */
-  :root {
+<style>  :root {
     --bg: #f4f4f4; --card: #ffffff; --ink: #1a1a1a; --muted: #5f6672; --line: #e3e3e3;
     --accent: #007BFF; --accent-ink: #ffffff; --ok: #1a7d33; --warn: #9a5b08; --err: #c22323;
     --ok-bg: #e7f4ec; --warn-bg: #fbeede; --err-bg: #fbe6e6; --shadow: 0 2px 10px rgba(20,30,50,.07);
@@ -67,7 +65,6 @@
   .hist-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
   .hist-head h2 { margin: 0; }
   .hidden { display: none !important; }
-  /* Sélecteur de langue (pilule en haut à droite, visible aussi par-dessus le rideau). */
   .lang { position: fixed; top: 12px; right: 12px; z-index: 10001; display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); }
   .lang button { border: 0; border-radius: 0; padding: 6px 13px; background: transparent; font-size: 13px; font-weight: 700; color: var(--muted); }
   .lang button.on { background: var(--brand-grad); color: #fff; }
@@ -78,7 +75,6 @@
   #authGate input { width: 100%; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; margin-bottom: 10px; text-align: center; }
   #authGate button { width: 100%; }
   #authGate .err { color: var(--err); font-size: 13px; min-height: 18px; margin-top: 8px; }
-  /* Menus par categorie + selecteurs segmentes facon MHD */
   .cat { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; background: var(--card); overflow: hidden; }
   .cat-head { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 13px 16px; background: transparent; border: 0; border-radius: 0; font: inherit; font-weight: 700; font-size: 14px; color: var(--ink); cursor: pointer; }
   .cat-head .chev { color: var(--orange); font-size: 12px; transition: transform .2s; }
@@ -104,13 +100,7 @@
   .field input { width: 100%; max-width: 340px; padding: 9px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; }
 </style>
 <script>
-/* ================== ADRESSE DU SERVEUR MS43 ==================
-   A remplacer par l'adresse du Worker affichee par Cloudflare apres le premier deploiement
-   (ex. https://ms43-api.ton-compte.workers.dev), sans "/" a la fin. */
 window.MS43_API = 'https://ms43-api.ajmmci.workers.dev';
-/* ============================================================ */
-
-/* --- Internationalisation (FR / EN) --- partagée entre le rideau et l'application. */
 window.AJM = (function () {
   var I18N = {
     fr: {
@@ -386,11 +376,6 @@ window.AJM = (function () {
 </div>
 <script>
 (function () {
-  // Connexion verifiee par le serveur AJM (les mots de passe ne sont plus dans cette page).
-  //   mot de passe AJM    -> mode "admin"  (rapport detaille, pas d'envoi mail, pas d'historique)
-  //   mot de passe CLIENT -> mode "client" (detail masque, envoi de l'original a AJM, historique)
-  // Casse et espaces ignores. Session gardee en memoire seulement : redemandee a chaque rechargement.
-  // Les mots de passe se changent dans les secrets GitHub du depot ms43-database.
   var gate = document.getElementById('authGate');
   function unlock() { gate.remove(); }
   function setMode(m) { window.__ms43mode = m; if (window.__applyMode) window.__applyMode(m); }
@@ -413,7 +398,6 @@ window.AJM = (function () {
   });
 })();
 </script>
-<!-- Cible invisible pour l'envoi du fichier (évite toute navigation / problème CORS). -->
 <iframe id="fsSink" name="fs_sink" class="hidden"></iframe>
 <main>
   <header class="hero">
@@ -495,10 +479,6 @@ window.AJM = (function () {
 </main>
 
 <script type="module">
-// Tout le traitement (detection, verification d'origine, modifications) se fait sur le serveur AJM :
-// cette page ne recoit que les noms des modifications et le fichier final, jamais la database.
-
-// Appel a l'API MS43 avec la session ouverte au rideau.
 async function api(path, body) {
   const opts = { headers: { Authorization: 'Bearer ' + (window.__ms43token || '') } };
   if (body) { opts.method = 'POST'; opts.body = body; }
@@ -516,35 +496,24 @@ const uploadForm = (fields) => {
   Object.entries(fields || {}).forEach(([k, v]) => fd.append(k, v));
   return fd;
 };
-
-// ================== CONFIGURATION ENVOI MAIL (mode client) ==================
-// Utilisé uniquement en mode client (mot de passe CLIENT). En mode admin (AJM), rien n'est envoyé.
-// Endpoint STANDARD de FormSubmit : le seul qui gère les PIÈCES JOINTES (l'AJAX délivre le texte mais PAS les fichiers).
-// Utilise l'e-mail (déjà public sur le site : pied de page / CGV). Formulaire activé une fois via le lien "Activate Form".
 const MAIL_ENDPOINT = 'https://formsubmit.co/ajmmciservice@gmail.com';
-// ===========================================================================
-
 const $ = (id) => document.getElementById(id);
 const T = (...a) => window.AJM.t(...a);
 const nf = (n) => n.toLocaleString(T('locale'));
-
-// Mode courant : 'admin' (AJM) ou 'client' (CLIENT). Fixé par le rideau au déverrouillage.
 let mode = window.__ms43mode || 'client';
 window.__applyMode = (m) => { window.__ms43mode = m; mode = m; renderMode(); };
 function renderMode() {
   $('headerP').innerHTML = T(mode === 'admin' ? 'header_admin' : 'header_client');
   $('apply').textContent = T(mode === 'admin' ? 'apply_admin' : 'apply');
-  $('historyCard').classList.toggle('hidden', mode !== 'client');  // historique : client seulement
-  $('noteSend').classList.toggle('hidden', mode !== 'client');     // mention "envoi à AJM" : client seulement
-  $('disclaimer').classList.toggle('hidden', mode !== 'client');   // case responsabilite : client seulement
-  $('emailField').classList.toggle('hidden', mode !== 'client');   // email de contact : client seulement
+  $('historyCard').classList.toggle('hidden', mode !== 'client');
+  $('noteSend').classList.toggle('hidden', mode !== 'client');
+  $('disclaimer').classList.toggle('hidden', mode !== 'client');
+  $('emailField').classList.toggle('hidden', mode !== 'client');
   if (mode === 'client' && !$('clientEmail').value) { try { $('clientEmail').value = localStorage.getItem('ms43_client_email') || ''; } catch {} }
-  $('origNote').classList.toggle('hidden', mode !== 'client');     // note "fichier d'origine" : client seulement
-  renderOrigin();                                                  // detail de l'origine : admin seulement
+  $('origNote').classList.toggle('hidden', mode !== 'client');
+  renderOrigin();
   renderHistory();
 }
-
-// Traduction EN des recettes, par texte FR exact (les JSON restent inchangés).
 const RNAME_EN = {
   'E85, demarrage a froid et ralenti': 'E85, cold start and idle',
   'Avance 98': 'Ignition advance (98)',
@@ -586,18 +555,12 @@ const RDESC_EN = {
 };
 const recName = (r) => (window.AJM.lang === 'en' && RNAME_EN[r.name]) || r.name;
 const recDesc = (r) => (window.AJM.lang === 'en' && RDESC_EN[r.description]) || r.description || '';
-
 let bytes = null, fileName = '', originalFile = null, sw = null, allRecipes = [], shown = [], lastOutput = null;
 let engineChoice = '', lastResult = null, lastEngine = '', outName = '';
 let origin = null, originPromise = Promise.resolve(), originToken = 0;
 let engineDet = { status: 'missing', found: [] }, originText = 'non vérifiée', engines = ['B22', 'B25', 'B30'], popList = [];
-
-// Etat du Pop & Bang (section parametrique, hors du modele generique coche/decoche).
-// Index par defaut : agressivite -15, pops jusqu'a 4000 tr, duree 2 s, declenchement permanent.
 function defaultPopState() { return { on: false, agg: 3, rpm: 2, dur: 1, ac: 'all' }; }
 let popState = defaultPopState();
-
-// --- Catalogue des modifications (noms et compatibilites seulement), charge apres connexion ---
 let catalogue = null;
 function getCatalogue() {
   catalogue ??= api('/api/catalogue').then((c) => {
@@ -607,15 +570,12 @@ function getCatalogue() {
   }).catch((e) => { catalogue = null; throw e; });
   return catalogue;
 }
-
-// --- Import ---
 const drop = $('drop'), fileInput = $('file');
 drop.addEventListener('click', () => fileInput.click());
 drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
 drop.addEventListener('dragleave', () => drop.classList.remove('over'));
 drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]); });
 fileInput.addEventListener('change', () => { if (fileInput.files[0]) load(fileInput.files[0]); });
-
 async function load(file) {
   fileName = file.name;
   originalFile = file;
@@ -642,8 +602,6 @@ async function load(file) {
   originPromise = runAnalyze();
   await originPromise;
 }
-
-// --- Analyse sur le serveur : version SW, base moteur, lecture d'origine ---
 async function runAnalyze() {
   const token = ++originToken;
   let res;
@@ -655,18 +613,16 @@ async function runAnalyze() {
     $('detectBanner').innerHTML = `<div class="banner err">${esc(e.message)}</div>`;
     return;
   }
-  if (token !== originToken) return; // un autre fichier a ete importe entre-temps
+  if (token !== originToken) return;
   sw = res.sw;
   engineDet = res.engine;
   origin = res.origin;
   originText = res.summary;
   showDetection();
 }
-
 function originPatches(o) {
   return [...(o.signatures || []), ...(o.recipePatches || []).map(recName)];
 }
-
 function renderOrigin() {
   const v = $('vOrig'), box = $('origBanner');
   if (!sw || sw.status !== 'known') { v.textContent = '—'; box.innerHTML = ''; return; }
@@ -674,7 +630,6 @@ function renderOrigin() {
   const o = origin, admin = mode === 'admin', lines = [];
   let kind = 'warn';
   const estKinds = { likely_stock: 'ok', likely_modified: 'err', unclear: 'warn' };
-  // Lignes de l'estimation (tables d'avance / injection). withDiffs : detail table par table (admin).
   const estimateLines = (e, withDiffs) => {
     lines.push(T('est_title', esc(e.refSw)));
     lines.push(T('est_' + e.verdict, e.same, e.compared));
@@ -689,13 +644,11 @@ function renderOrigin() {
     }
     lines.push(`<i>${T('est_warn')}</i>`);
   };
-  // Etat du programme quand il n'a pas pu etre confirme (admin).
   const programLine = () => {
     if (!admin) return;
     if (o.partial) lines.push(T('orig_partial'));
     else if (o.programOk === null) lines.push(T('orig_prog_unknown', esc(sw.software)));
   };
-
   if (o.status === 'stock') {
     v.innerHTML = badge(T('orig_stock_badge'), 'ok');
     lines.push(T('orig_stock', esc(o.match.label)));
@@ -713,7 +666,6 @@ function renderOrigin() {
       estimateLines(e, true);
     }
   } else if (o.status === 'cal_unknown' && !admin) {
-    // Client : calibration non repertoriee -> on donne l'estimation si elle existe.
     const e = o.estimate;
     if (e && e.verdict !== 'unclear') {
       v.innerHTML = badge(T('est_' + e.verdict + '_badge'), estKinds[e.verdict]);
@@ -753,20 +705,14 @@ function renderOrigin() {
   }
   box.innerHTML = `<div class="banner ${kind}">${lines.map((l) => `<div>${l}</div>`).join('')}</div>`;
 }
-
-// Resume texte (FR) de l'origine, joint a la demande envoyee a AJM.
-// (calcule par le serveur lors de l'analyse)
 function originSummary() { return originText; }
-
 const badge = (text, kind) => `<span class="tag ${kind}">${text}</span>`;
-
 function showDetection() {
   $('detectCard').classList.remove('hidden');
   $('vSize').textContent = T('bytes', nf(bytes.length));
   const banner = $('detectBanner');
   banner.innerHTML = '';
   renderOrigin();
-
   if (sw.status === 'bad_size') {
     $('vSw').innerHTML = badge(T('bad_size_badge'), 'err');
     $('vEngine').textContent = '—';
@@ -785,10 +731,8 @@ function showDetection() {
     banner.innerHTML = `<div class="banner err">${T('inconsistent', sw.program, sw.software)}</div>`;
     return hideRecipes();
   }
-
   const variantNote = sw.variants.length > 1 ? ` <span class="note">(${sw.variants.join(' / ')})</span>` : '';
   $('vSw').innerHTML = badge(sw.software, 'ok') + variantNote;
-
   const engine = engineDet;
   const sel = $('engineSel');
   const auto = engine.status === 'known' ? engine.engine : '';
@@ -796,7 +740,6 @@ function showDetection() {
   sel.value = engineChoice || auto;
   sel.classList.remove('hidden');
   sel.onchange = () => { engineChoice = sel.value; buildRecipes(); };
-
   if (engine.status === 'known') {
     $('vEngine').innerHTML = badge(engine.engine, 'ok') + ` <span class="note">${T('engine_from_name')}</span> `;
   } else if (engine.status === 'ambiguous') {
@@ -808,10 +751,7 @@ function showDetection() {
   }
   buildRecipes();
 }
-
 function hideRecipes() { $('recipesCard').classList.add('hidden'); }
-
-// Categorie d'une recette (par id ; "other" sinon) -> menus par categorie facon MHD.
 const CAT_OF = {
   limiter_50: 'rpm', limiter_100: 'rpm', limiter_200: 'rpm', limiter_300: 'rpm',
   fuel_hardcut: 'rpm', hard_cut: 'rpm', ignition_cut: 'rpm', limiter_100rpm: 'rpm',
@@ -823,8 +763,6 @@ const CAT_ORDER = ['rpm', 'fuel', 'misc', 'depol', 'other'];
 const catOf = (r) => CAT_OF[r.id] || 'other';
 const numIn = (s) => { const m = String(s).match(/\d+/); return m ? +m[0] : 0; };
 const optLabel = (r) => { const m = recName(r).match(/[+\-]\s?\d+/); return m ? m[0].replace(/\s/g, '') : recName(r); };
-
-// Tag court par recette pour nommer le fichier telecharge (independant de la langue).
 const TAG_OF = {
   e85_coldstart_idle: 'E85', fuel_hardcut: 'Hardcut', hard_cut: 'Hardcut',
   aa_98: 'AA98', vanos_ae: 'VANOS', idle_haut: 'RalentiHaut', pedale_lineaire: 'PedaleLin',
@@ -832,20 +770,17 @@ const TAG_OF = {
   o2_rear_off: 'O2off', cat_heating_off: 'CatHeatOff',
 };
 function tagOf(r) {
-  if (r.tag) return r.tag; // tag pre-calcule (Pop & Bang)
+  if (r.tag) return r.tag;
   if (r.group === 'limiter') { const m = String(r.name).match(/\+(\d+)/); return m ? ('+' + m[1] + 'rpm') : 'limiter'; }
   if (TAG_OF[r.id]) return TAG_OF[r.id];
   return (String(r.name).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9+]+/g, '') || 'mod').slice(0, 16);
 }
-// Nom de sortie : <origine>_AJM_<tag1>_<tag2>...bin (caracteres de fichier invalides retires).
 function buildOutName(name, chosen) {
   const base = name.replace(/\.bin$/i, '');
   const tags = chosen.map(tagOf).filter(Boolean);
   const full = base + '_AJM_' + tags.join('_');
   return full.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '_') + '.bin';
 }
-
-// ---- Pop & Bang (section parametrique) ----
 const popDescOf = (engine, def) => popList.find((r) => r.software.includes(def) && r.engines.includes(engine));
 function popLabel(kind, c) {
   if (kind === 'agg') return c.deg + '°';
@@ -883,7 +818,6 @@ function popSectionHtml(desc) {
       ${opts}
     </div></section>`;
 }
-// Nom et tag du Pop & Bang choisi ; les valeurs sont calculees par le serveur a partir des crans.
 function buildPopRecipe(desc, engine, def) {
   const agg = desc.agg.crans[popState.agg], rpm = desc.rpm.crans[popState.rpm], dur = desc.dur.crans[popState.dur];
   const writes = null;
@@ -894,8 +828,6 @@ function buildPopRecipe(desc, engine, def) {
   return { id: 'pop_bang', type: 'pop', name, software: [def], engines: [engine], writes, tag,
     choice: { agg: popState.agg, rpm: popState.rpm, dur: popState.dur, ac: popState.ac } };
 }
-
-// Selecteur Off/On d'une recette (case cachee = etat reel lu par "Appliquer").
 function segSingle(i, on) {
   return `<div class="seg seg-onoff">
       <button type="button" class="seg-opt${on ? '' : ' on'}" data-on="0">${T('seg_off')}</button>
@@ -909,7 +841,6 @@ function singleHtml(r, i, was) {
       ${segSingle(i, was.has(String(i)))}
     </div>`;
 }
-// Groupe (ex. limiteur) rendu en curseur : Off / +50 / +100 / ... (choix unique).
 function groupHtml(gid, members, was) {
   members.sort((a, b) => numIn(a.r.name) - numIn(b.r.name));
   const anyOn = members.some((m) => was.has(String(m.i)));
@@ -921,7 +852,6 @@ function groupHtml(gid, members, was) {
       <div class="seg seg-group">${opts}</div>${boxes}
     </div>`;
 }
-
 async function buildRecipes() {
   $('reportCard').classList.add('hidden');
   $('applyMsg').textContent = '';
@@ -933,10 +863,7 @@ async function buildRecipes() {
     $('recipesCard').classList.remove('hidden');
     $('recipesInfo').innerHTML = badge(esc(e.message), 'err'); box.innerHTML = ''; $('apply').disabled = true; return;
   }
-
-  // Preserve les choix lors d'un re-rendu (ex. changement de langue), par index.
   const was = new Set([...box.querySelectorAll('input:checked')].map((c) => c.value));
-
   $('recipesCard').classList.remove('hidden');
   if (!engine) { $('recipesInfo').textContent = T('info_choose_engine'); box.innerHTML = ''; $('apply').disabled = true; return; }
   shown = allRecipes.filter((r) => r.type !== 'pop' && r.software.includes(def) && r.engines.includes(engine));
@@ -944,7 +871,6 @@ async function buildRecipes() {
   if (shown.length === 0 && !popDesc) { $('recipesInfo').textContent = T('info_none', engine, def); box.innerHTML = ''; $('apply').disabled = true; return; }
   $('recipesInfo').textContent = T('info_ready', def, engine);
   $('apply').disabled = false;
-
   const items = shown.map((r, i) => ({ r, i }));
   const byCat = {};
   items.forEach((it) => { const c = catOf(it.r); (byCat[c] = byCat[c] || []).push(it); });
@@ -962,14 +888,10 @@ async function buildRecipes() {
   if (popDesc) parts.push(popSectionHtml(popDesc));
   box.innerHTML = parts.join('');
 }
-
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
-// Interaction des selecteurs segmentes + repli des menus par categorie (delegation).
 $('recipes').addEventListener('click', (e) => {
   const opt = e.target.closest('.seg-opt');
   if (opt && opt.parentElement.hasAttribute('data-pop')) {
-    // Selecteurs Pop & Bang : etat en memoire (popState), pas de case cachee.
     const seg = opt.parentElement, kind = seg.getAttribute('data-pop');
     seg.querySelectorAll('.seg-opt').forEach((o) => o.classList.remove('on'));
     opt.classList.add('on');
@@ -994,8 +916,6 @@ $('recipes').addEventListener('click', (e) => {
   if (head) head.parentElement.classList.toggle('closed');
 });
 $('reset').onclick = () => location.reload();
-
-// --- Envoi de la lecture d'origine à AJM (endpoint AJAX FormSubmit : on lit la réponse) ---
 async function sendOriginal(file, meta) {
   const fd = new FormData();
   fd.append('_subject', 'Demande MS43 — ' + meta.file);
@@ -1007,19 +927,16 @@ async function sendOriginal(file, meta) {
   fd.append('Modifications', meta.mods);
   fd.append('Origine', meta.origin);
   fd.append('Email_client', meta.email);
-  fd.append('_replyto', meta.email); // AJM peut répondre directement au client
+  fd.append('_replyto', meta.email);
   fd.append('Date', meta.date);
   fd.append('attachment', file, meta.file);
   try {
     const r = await fetch(MAIL_ENDPOINT, { method: 'POST', body: fd });
     const body = await r.text().catch(() => '');
-    // L'endpoint standard renvoie une page HTML. En cas de souci, elle parle d'activation/captcha.
     const problem = /needs activation|not a valid|recaptcha|captcha/i.test(body);
     return { ok: r.ok && !problem, msg: problem ? 'formulaire non activé / bloqué' : ('HTTP ' + r.status) };
   } catch (e) { return { ok: false, msg: String(e) }; }
 }
-
-// --- Historique local (mode client, ce navigateur uniquement) ---
 const HKEY = 'ms43_client_history';
 const loadHistory = () => { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch { return []; } };
 const saveHistory = (list) => { try { localStorage.setItem(HKEY, JSON.stringify(list.slice(0, 50))); } catch {} };
@@ -1031,28 +948,22 @@ function renderHistory() {
     : `<div class="note">${T('hist_empty')}</div>`;
 }
 $('histClear').onclick = () => { if (confirm(T('hist_confirm'))) { try { localStorage.removeItem(HKEY); } catch {} renderHistory(); } };
-
 $('apply').addEventListener('click', async () => {
   const engine = $('engineSel').value;
   const def = sw.variants[0];
   const chosen = [...document.querySelectorAll('#recipes input:checked')].map((c) => shown[+c.value]);
-  // Pop & Bang : recette construite a la volee depuis les curseurs (hors cases a cocher).
   const popDesc = popDescOf(engine, def);
   if (popState.on && popDesc) chosen.push(buildPopRecipe(popDesc, engine, def));
   if (chosen.length === 0) { $('applyMsg').innerHTML = badge(T('need_one'), 'warn'); return; }
-  // Mode client : la case de responsabilite doit etre cochee avant tout telechargement/envoi.
   if (mode === 'client' && !$('disclaimerChk').checked) { $('applyMsg').innerHTML = badge(T('disclaimer_need'), 'warn'); return; }
-  // Mode client : adresse e-mail de contact valide obligatoire (pour qu'AJM puisse recontacter).
   const clientEmail = mode === 'client' ? $('clientEmail').value.trim() : '';
   if (mode === 'client' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) { $('applyMsg').innerHTML = badge(T('email_need'), 'warn'); return; }
   if (clientEmail) { try { localStorage.setItem('ms43_client_email', clientEmail); } catch {} }
-  // Mode client : fichier non reconnu comme lecture d'origine -> avertissement, le client choisit de continuer ou non.
   let originForced = false;
   if (mode === 'client') {
     await originPromise;
     const est = origin && origin.estimate;
     const estModified = est && est.verdict === 'likely_modified';
-    // Calibration non repertoriee mais tables identiques a l'usine : variante d'usine probable, pas de question.
     const calAsk = origin && origin.status === 'cal_unknown' && !(est && est.verdict === 'likely_stock');
     const noRefAsk = origin && origin.status === 'no_ref' && estModified;
     if (origin && (origin.status === 'modified' || calAsk || noRefAsk)) {
@@ -1075,19 +986,17 @@ $('apply').addEventListener('click', async () => {
     result.bytes = Uint8Array.from(atob(result.file), (c) => c.charCodeAt(0));
     lastOutput = result.bytes;
     lastResult = result; lastEngine = engine;
-    outName = buildOutName(fileName, chosen); // nom = origine + AJM + modifs choisies
+    outName = buildOutName(fileName, chosen);
     showReport(result, engine);
     download(result.bytes);
     $('applyMsg').innerHTML = badge(mode === 'admin' ? T('applied_detail', result.total) : T('applied_ok'), 'ok');
-
-    // Mode client uniquement : enregistre la demande en local + envoie l'original à AJM.
     if (mode === 'client') {
       const modsNames = chosen.map((r) => recName(r)).join(', ');
       const entry = { date: new Date().toLocaleString(T('locale')), file: fileName, sw: sw.software, engine, mods: modsNames };
       addHistory(entry);
       if (originalFile) {
         $('sendMsg').innerHTML = badge(T('sending'), 'warn');
-        await originPromise; // la verification d'origine accompagne la demande
+        await originPromise;
         const res = await sendOriginal(originalFile, { file: fileName, sw: sw.software, engine, mods: modsNames, email: clientEmail, date: entry.date, origin: originSummary() + (originForced ? ' — le client a confirmé vouloir continuer malgré l\'avertissement' : '') });
         $('sendMsg').innerHTML = badge(res.ok ? T('sent') : T('send_fail'), res.ok ? 'ok' : 'err');
         if (!res.ok) console.warn('[MS43] Envoi à AJM :', res.msg);
@@ -1099,12 +1008,10 @@ $('apply').addEventListener('click', async () => {
     $('applyMsg').innerHTML = badge(e.message, 'err');
   }
 });
-
 function showReport(result, engine) {
   $('reportCard').classList.remove('hidden');
   $('reportTitle').textContent = T(mode === 'admin' ? 'report_detail' : 'report');
   if (mode === 'admin') {
-    // Mode admin : rapport détaillé, cartographie par cartographie.
     const fmt = (v) => (Number.isInteger(v) ? v : Number(v.toFixed(3)));
     const changes = result.changes || [];
     const rounded = result.rounded
@@ -1114,11 +1021,9 @@ function showReport(result, engine) {
     const more = result.total > 50 ? `<div class="note" style="margin-top:6px">${T('more', result.total - 50)}</div>` : '';
     $('reportBody').innerHTML = `<p>${T('report_line', engine, result.total)}</p>${rounded}${rows}${more}`;
   } else {
-    // Mode client : pas de détail, juste une confirmation.
     $('reportBody').innerHTML = `<p>${T('done_msg')}</p>`;
   }
 }
-
 function download(data) {
   const blob = new Blob([data], { type: 'application/octet-stream' });
   const a = document.createElement('a');
@@ -1128,8 +1033,6 @@ function download(data) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 $('redownload').onclick = () => { if (lastOutput) download(lastOutput); };
-
-// Re-rendu du contenu dynamique au changement de langue, puis application initiale.
 window.AJM.onChange(() => {
   if (bytes && sw) showDetection();
   if (lastResult) showReport(lastResult, lastEngine);
