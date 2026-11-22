@@ -127,8 +127,9 @@ window.AJM = (function () {
       cat_rpm: 'Régime & limiteur', cat_fuel: 'Carburant & moteur', cat_misc: 'Confort & divers', cat_depol: 'Dépollution (hors route)', cat_other: 'Divers',
       cat_pop: 'Pop & Bang (hors route)',
       pop_enable: 'Activer le Pop & Bang', pop_enable_d: 'Pétarades à l\'échappement en levant le pied.',
-      pop_warn: '⚠ Le Pop & Bang maintient du carburant imbrûlé et retarde l\'allumage à l\'échappement. Il sollicite fortement le catalyseur, les soupapes et les sondes, augmente la température d\'échappement et n\'est <b>pas homologué route</b>. Réservé à un usage hors route / compétition, à tes risques.',
-      pop_agg: 'Agressivité', pop_rpm: 'Pops jusqu\'à', pop_dur: 'Durée', pop_trig: 'Déclenchement',
+      pop_warn: '⚠ Le Pop & Bang maintient du carburant imbrûlé et retarde l\'allumage à l\'échappement. À utiliser <b>impérativement sans catalyseur</b> : les pétarades l\'endommagent très rapidement. Il sollicite aussi les soupapes et les sondes, augmente la température d\'échappement et n\'est <b>pas homologué route</b>. Réservé à un usage hors route / compétition, à tes risques.',
+      pop_agg: 'Calage de l\'avance à l\'allumage', pop_rpm: 'Pops jusqu\'à', pop_dur: 'Durée', pop_trig: 'Déclenchement',
+      pop_agg_d: 'Ce réglage joue sur l\'avance à l\'allumage : ici on <b>retarde</b> l\'étincelle (elle se produit après le PMH), ce qui décale la combustion vers l\'échappement. Plus le retard est important, plus les pétarades sont fortes.',
       pop_ac_all: 'Tout le temps', pop_ac_clim: 'Sur clim', pop_inf: '∞',
       pop_unit_rpm: ' tr', pop_unit_s: ' s',
       sel_all: 'Tout cocher',
@@ -240,8 +241,9 @@ window.AJM = (function () {
       cat_rpm: 'Rev limit & cut', cat_fuel: 'Fuel & engine', cat_misc: 'Comfort & misc', cat_depol: 'Emissions (off-road)', cat_other: 'Other',
       cat_pop: 'Pop & Bang (off-road)',
       pop_enable: 'Enable Pop & Bang', pop_enable_d: 'Exhaust crackle when you lift off.',
-      pop_warn: '⚠ Pop & Bang keeps unburnt fuel and retards ignition into the exhaust. It puts heavy stress on the catalytic converter, valves and sensors, raises exhaust temperature and is <b>not road-legal</b>. Off-road / motorsport use only, at your own risk.',
-      pop_agg: 'Aggressiveness', pop_rpm: 'Pops up to', pop_dur: 'Duration', pop_trig: 'Trigger',
+      pop_warn: '⚠ Pop & Bang keeps unburnt fuel and retards ignition into the exhaust. Use it <b>only without a catalytic converter</b>: the crackle damages it very quickly. It also stresses the valves and sensors, raises exhaust temperature and is <b>not road-legal</b>. Off-road / motorsport use only, at your own risk.',
+      pop_agg: 'Ignition timing', pop_rpm: 'Pops up to', pop_dur: 'Duration', pop_trig: 'Trigger',
+      pop_agg_d: 'This setting acts on ignition timing: here the spark is <b>retarded</b> (it fires after TDC), moving combustion towards the exhaust. The more retard, the stronger the crackle.',
       pop_ac_all: 'Always', pop_ac_clim: 'A/C on', pop_inf: '∞',
       pop_unit_rpm: ' rpm', pop_unit_s: ' s',
       sel_all: 'Select all',
@@ -535,7 +537,7 @@ const RDESC_EN = {
   'Coupe seche au limiteur. Issu d un fichier de test, a valider.': 'Hard cut at the rev limit. From a test file, to be validated.',
   'Augmente le regime de ralenti.': 'Raises the idle speed.',
   'Reponse lineaire de la pedale d accelerateur.': 'Linear accelerator pedal response.',
-  'Abaisse la consigne de temperature du thermostat electrique a 90 C (valeurs copiees du B30).': 'Lowers the electric thermostat temperature target to 90 °C (values copied from the B30).',
+  'Abaisse la consigne de temperature du thermostat electrique a 90 C.': 'Lowers the electric thermostat temperature target to 90 °C.',
   'Releve le limiteur de regime de +50 tr/min (delta sur la valeur du fichier).': 'Raises the rev limit by +50 rpm (delta on the file\'s value).',
   'Releve le limiteur de regime de +100 tr/min (delta sur la valeur du fichier).': 'Raises the rev limit by +100 rpm (delta on the file\'s value).',
   'Releve le limiteur de regime de +200 tr/min (delta sur la valeur du fichier).': 'Raises the rev limit by +200 rpm (delta on the file\'s value).',
@@ -855,10 +857,10 @@ function popSectionHtml(desc) {
       <button type="button" class="seg-opt${s.ac === 'all' ? ' on' : ''}" data-pav="all">${T('pop_ac_all')}</button>
       <button type="button" class="seg-opt${s.ac === 'clim' ? ' on' : ''}" data-pav="clim">${T('pop_ac_clim')}</button>
     </div>`;
-  const row = (lbl, ctrl) => `<div class="mod"><div class="mod-head"><span class="mod-name">${lbl}</span></div>${ctrl}</div>`;
+  const row = (lbl, ctrl, desc) => `<div class="mod"><div class="mod-head"><span class="mod-name">${lbl}</span>${desc ? `<span class="mod-desc">${desc}</span>` : ''}</div>${ctrl}</div>`;
   const opts = `<div id="popOpts"${s.on ? '' : ' class="hidden"'}>
       <div class="banner warn pop-warn">${T('pop_warn')}</div>
-      ${row(T('pop_agg'), popSlider('agg', desc.agg.crans, s.agg))}
+      ${row(T('pop_agg'), popSlider('agg', desc.agg.crans, s.agg), T('pop_agg_d'))}
       ${row(T('pop_rpm'), popSlider('rpm', desc.rpm.crans, s.rpm))}
       ${row(T('pop_dur'), popSlider('dur', desc.dur.crans, s.dur))}
       ${row(T('pop_trig'), ac)}
