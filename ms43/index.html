@@ -99,6 +99,9 @@
   .disclaimer { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--warn); border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-size: 13px; margin-top: 6px; cursor: pointer; }
   .disclaimer input { margin-top: 2px; width: 16px; height: 16px; flex: none; accent-color: var(--orange); }
   .pop-warn { cursor: default; margin: 6px 0 10px; }
+  .field { margin-top: 12px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+  .field input { width: 100%; max-width: 340px; padding: 9px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; }
 </style>
 <script>
 /* --- Internationalisation (FR / EN) --- partagée entre le rideau et l'application. */
@@ -172,6 +175,9 @@ window.AJM = (function () {
       need_one: 'coche au moins une modification',
       disclaimer_text: 'Je comprends que ces modifications sont appliquées sous ma seule responsabilité, à mes risques, et qu\'AJM ne peut être tenu responsable d\'éventuels dommages.',
       disclaimer_need: 'Coche la case de responsabilité pour continuer.',
+      email_label: 'Ton adresse e-mail (pour te contacter en cas de souci)',
+      email_ph: 'ton@email.com',
+      email_need: 'Entre une adresse e-mail valide pour continuer.',
       orig_note: '⚠ Les modifications ne fonctionnent que sur une <b>lecture d\'origine</b> (fichier d\'usine non modifié). N\'importe pas un fichier déjà retouché.',
       k_origin: 'Origine',
       orig_checking: 'vérification…',
@@ -282,6 +288,9 @@ window.AJM = (function () {
       need_one: 'tick at least one modification',
       disclaimer_text: 'I understand these modifications are applied under my sole responsibility, at my own risk, and that AJM cannot be held liable for any damage.',
       disclaimer_need: 'Tick the liability box to continue.',
+      email_label: 'Your email address (so we can reach you if there\'s an issue)',
+      email_ph: 'you@email.com',
+      email_need: 'Enter a valid email address to continue.',
       orig_note: '⚠ Modifications only work on a <b>stock original read</b> (unmodified factory file). Don\'t import a file that has already been tuned.',
       k_origin: 'Origin',
       orig_checking: 'checking…',
@@ -423,6 +432,10 @@ window.AJM = (function () {
     <h2><span class="step">3</span> <span data-i18n="s3">Modifications</span></h2>
     <div id="recipesInfo" class="note" style="margin-bottom:12px"></div>
     <div id="recipes"></div>
+    <div id="emailField" class="field hidden">
+      <label for="clientEmail" data-i18n="email_label">Ton adresse e-mail (pour te contacter en cas de souci)</label>
+      <input id="clientEmail" type="email" autocomplete="email" data-i18n-ph="email_ph" placeholder="ton@email.com">
+    </div>
     <label id="disclaimer" class="disclaimer hidden">
       <input type="checkbox" id="disclaimerChk">
       <span data-i18n="disclaimer_text">Je comprends que ces modifications sont appliquées sous ma seule responsabilité.</span>
@@ -486,6 +499,8 @@ function renderMode() {
   $('historyCard').classList.toggle('hidden', mode !== 'client');  // historique : client seulement
   $('noteSend').classList.toggle('hidden', mode !== 'client');     // mention "envoi à AJM" : client seulement
   $('disclaimer').classList.toggle('hidden', mode !== 'client');   // case responsabilite : client seulement
+  $('emailField').classList.toggle('hidden', mode !== 'client');   // email de contact : client seulement
+  if (mode === 'client' && !$('clientEmail').value) { try { $('clientEmail').value = localStorage.getItem('ms43_client_email') || ''; } catch {} }
   $('origNote').classList.toggle('hidden', mode !== 'client');     // note "fichier d'origine" : client seulement
   renderOrigin();                                                  // detail de l'origine : admin seulement
   renderHistory();
@@ -976,6 +991,8 @@ async function sendOriginal(file, meta) {
   fd.append('Base_moteur', meta.engine);
   fd.append('Modifications', meta.mods);
   fd.append('Origine', meta.origin);
+  fd.append('Email_client', meta.email);
+  fd.append('_replyto', meta.email); // AJM peut répondre directement au client
   fd.append('Date', meta.date);
   fd.append('attachment', file, meta.file);
   try {
@@ -1010,6 +1027,10 @@ $('apply').addEventListener('click', async () => {
   if (chosen.length === 0) { $('applyMsg').innerHTML = badge(T('need_one'), 'warn'); return; }
   // Mode client : la case de responsabilite doit etre cochee avant tout telechargement/envoi.
   if (mode === 'client' && !$('disclaimerChk').checked) { $('applyMsg').innerHTML = badge(T('disclaimer_need'), 'warn'); return; }
+  // Mode client : adresse e-mail de contact valide obligatoire (pour qu'AJM puisse recontacter).
+  const clientEmail = mode === 'client' ? $('clientEmail').value.trim() : '';
+  if (mode === 'client' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) { $('applyMsg').innerHTML = badge(T('email_need'), 'warn'); return; }
+  if (clientEmail) { try { localStorage.setItem('ms43_client_email', clientEmail); } catch {} }
   // Mode client : fichier non reconnu comme lecture d'origine -> avertissement, le client choisit de continuer ou non.
   let originForced = false;
   if (mode === 'client') {
@@ -1046,7 +1067,7 @@ $('apply').addEventListener('click', async () => {
       if (originalFile) {
         $('sendMsg').innerHTML = badge(T('sending'), 'warn');
         await originPromise; // la verification d'origine accompagne la demande
-        const res = await sendOriginal(originalFile, { file: fileName, sw: sw.software, engine, mods: modsNames, date: entry.date, origin: originSummary() + (originForced ? ' — le client a confirmé vouloir continuer malgré l\'avertissement' : '') });
+        const res = await sendOriginal(originalFile, { file: fileName, sw: sw.software, engine, mods: modsNames, email: clientEmail, date: entry.date, origin: originSummary() + (originForced ? ' — le client a confirmé vouloir continuer malgré l\'avertissement' : '') });
         $('sendMsg').innerHTML = badge(res.ok ? T('sent') : T('send_fail'), res.ok ? 'ok' : 'err');
         if (!res.ok) console.warn('[MS43] Envoi à AJM :', res.msg);
       }
