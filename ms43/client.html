@@ -104,6 +104,12 @@
   .field input { width: 100%; max-width: 340px; padding: 9px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; }
 </style>
 <script>
+/* ================== ADRESSE DU SERVEUR MS43 ==================
+   A remplacer par l'adresse du Worker affichee par Cloudflare apres le premier deploiement
+   (ex. https://ms43-api.ton-compte.workers.dev), sans "/" a la fin. */
+window.MS43_API = 'https://ms43-api.ajmmci.workers.dev';
+/* ============================================================ */
+
 /* --- Internationalisation (FR / EN) --- partagée entre le rideau et l'application. */
 window.AJM = (function () {
   var I18N = {
@@ -113,7 +119,11 @@ window.AJM = (function () {
       gate_ph: 'Mot de passe',
       gate_btn: 'Entrer',
       gate_bad: 'Mot de passe incorrect.',
-      header_admin: 'Détection automatique de la version logiciel et application des modifications validées. Le fichier reste dans ton navigateur&nbsp;: rien n\'est envoyé sur un serveur.',
+      gate_net: 'Serveur injoignable. Réessaie dans un instant.',
+      session_expired: 'Session expirée : recharge la page pour te reconnecter.',
+      analyzing: 'Analyse en cours…',
+      applying: 'Préparation du fichier…',
+      header_admin: 'Détection automatique de la version logiciel et application des modifications validées. Le fichier est traité sur le serveur AJM et n\'y est pas conservé.',
       header_client: 'Importe ta lecture d\'origine, choisis tes modifications et télécharge le fichier. Ta lecture d\'origine est transmise à AJM pour le suivi de ta demande.',
       s1: 'Importer le fichier',
       drop: 'Dépose un fichier <b>.bin</b> (512&nbsp;Ko), ou clique pour le choisir',
@@ -227,7 +237,11 @@ window.AJM = (function () {
       gate_ph: 'Password',
       gate_btn: 'Enter',
       gate_bad: 'Incorrect password.',
-      header_admin: 'Automatic software version detection and application of validated modifications. The file stays in your browser&nbsp;: nothing is sent to a server.',
+      gate_net: 'Server unreachable. Please try again in a moment.',
+      session_expired: 'Session expired: reload the page to sign in again.',
+      analyzing: 'Analysing…',
+      applying: 'Preparing the file…',
+      header_admin: 'Automatic software version detection and application of validated modifications. The file is processed on the AJM server and is not kept there.',
       header_client: 'Import your original read, pick your modifications and download the file. Your original read is sent to AJM to process your request.',
       s1: 'Import the file',
       drop: 'Drop a <b>.bin</b> file (512&nbsp;KB), or click to choose it',
@@ -372,27 +386,30 @@ window.AJM = (function () {
 </div>
 <script>
 (function () {
-  // Rideau : deux mots de passe (empreintes SHA-256, le mot n'est pas en clair ici).
-  // Protection legere cote navigateur, contournable : ne remplace pas une vraie authentification.
-  //   AJM    -> mode "admin"  (rapport detaille, pas d'envoi mail, pas d'historique)
-  //   CLIENT -> mode "client" (detail masque, envoi de l'original a AJM, historique)
-  // Casse et espaces ignores. Pas de memorisation : redemande a chaque ouverture/rechargement.
-  // Pour changer un mot de passe, remplace l'empreinte correspondante (SHA-256 du nouveau mot en MAJUSCULES).
-  var ADMIN_HASH = '93df9dd6e6a179b1fa5aa267b5cb949bca793111ac581c17128f560a6b9e4c4e';  // AJM
-  var CLIENT_HASH = '50d7026e31bc614f02983439cd0e9d83857b237f703fc9f5463a2a371dcc61f8'; // CLIENT
+  // Connexion verifiee par le serveur AJM (les mots de passe ne sont plus dans cette page).
+  //   mot de passe AJM    -> mode "admin"  (rapport detaille, pas d'envoi mail, pas d'historique)
+  //   mot de passe CLIENT -> mode "client" (detail masque, envoi de l'original a AJM, historique)
+  // Casse et espaces ignores. Session gardee en memoire seulement : redemandee a chaque rechargement.
+  // Les mots de passe se changent dans les secrets GitHub du depot ms43-database.
   var gate = document.getElementById('authGate');
   function unlock() { gate.remove(); }
   function setMode(m) { window.__ms43mode = m; if (window.__applyMode) window.__applyMode(m); }
-  async function sha(s) {
-    var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-    return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-  }
   document.getElementById('authForm').addEventListener('submit', async function (e) {
     e.preventDefault();
-    var h = await sha(document.getElementById('authPass').value.trim().toUpperCase());
-    if (h === ADMIN_HASH) { setMode('admin'); unlock(); }
-    else if (h === CLIENT_HASH) { setMode('client'); unlock(); }
-    else { document.getElementById('authErr').textContent = window.AJM.t('gate_bad'); }
+    var err = document.getElementById('authErr');
+    err.textContent = '';
+    try {
+      var r = await fetch(window.MS43_API + '/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: document.getElementById('authPass').value }),
+      });
+      if (r.status === 403) { err.textContent = window.AJM.t('gate_bad'); return; }
+      var data = await r.json();
+      if (!r.ok) { err.textContent = data.error || window.AJM.t('gate_net'); return; }
+      window.__ms43token = data.token;
+      setMode(data.mode);
+      unlock();
+    } catch (ex) { err.textContent = window.AJM.t('gate_net'); }
   });
 })();
 </script>
@@ -478,8 +495,27 @@ window.AJM = (function () {
 </main>
 
 <script type="module">
-import { IMAGE_SIZE, ENGINES, detectSoftware, detectEngine, applyRecipes } from './src/ms43.js';
-import { checkOrigin, changedMaps, estimateOrigin } from './src/origin.js';
+// Tout le traitement (detection, verification d'origine, modifications) se fait sur le serveur AJM :
+// cette page ne recoit que les noms des modifications et le fichier final, jamais la database.
+
+// Appel a l'API MS43 avec la session ouverte au rideau.
+async function api(path, body) {
+  const opts = { headers: { Authorization: 'Bearer ' + (window.__ms43token || '') } };
+  if (body) { opts.method = 'POST'; opts.body = body; }
+  let r;
+  try { r = await fetch(window.MS43_API + path, opts); } catch { throw new Error(T('gate_net')); }
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401) throw new Error(T('session_expired'));
+  if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+  return data;
+}
+const uploadForm = (fields) => {
+  const fd = new FormData();
+  fd.append('file', originalFile, fileName);
+  fd.append('name', fileName);
+  Object.entries(fields || {}).forEach(([k, v]) => fd.append(k, v));
+  return fd;
+};
 
 // ================== CONFIGURATION ENVOI MAIL (mode client) ==================
 // Utilisé uniquement en mode client (mot de passe CLIENT). En mode admin (AJM), rien n'est envoyé.
@@ -554,20 +590,23 @@ const recDesc = (r) => (window.AJM.lang === 'en' && RDESC_EN[r.description]) || 
 let bytes = null, fileName = '', originalFile = null, sw = null, allRecipes = [], shown = [], lastOutput = null;
 let engineChoice = '', lastResult = null, lastEngine = '', outName = '';
 let origin = null, originPromise = Promise.resolve(), originToken = 0;
+let engineDet = { status: 'missing', found: [] }, originText = 'non vérifiée', engines = ['B22', 'B25', 'B30'], popList = [];
 
 // Etat du Pop & Bang (section parametrique, hors du modele generique coche/decoche).
 // Index par defaut : agressivite -15, pops jusqu'a 4000 tr, duree 2 s, declenchement permanent.
 function defaultPopState() { return { on: false, agg: 3, rpm: 2, dur: 1, ac: 'all' }; }
 let popState = defaultPopState();
 
-// --- Chargement du catalogue de recettes (manifeste extensible) ---
-const catalogue = (async () => {
-  try {
-    const list = await (await fetch('recipes/index.json')).json();
-    const files = await Promise.all(list.map((f) => fetch(`recipes/${f}`).then((r) => r.json())));
-    return files.flat();
-  } catch { return []; }
-})();
+// --- Catalogue des modifications (noms et compatibilites seulement), charge apres connexion ---
+let catalogue = null;
+function getCatalogue() {
+  catalogue ??= api('/api/catalogue').then((c) => {
+    engines = c.engines;
+    popList = c.pop.map((p) => ({ ...p, type: 'pop' }));
+    return c.recipes;
+  }).catch((e) => { catalogue = null; throw e; });
+  return catalogue;
+}
 
 // --- Import ---
 const drop = $('drop'), fileInput = $('file');
@@ -582,7 +621,6 @@ async function load(file) {
   originalFile = file;
   $('fname').textContent = fileName;
   bytes = new Uint8Array(await file.arrayBuffer());
-  sw = detectSoftware(bytes);
   engineChoice = '';
   popState = defaultPopState();
   lastResult = null;
@@ -590,45 +628,39 @@ async function load(file) {
   $('applyMsg').textContent = '';
   $('sendMsg').textContent = '';
   origin = null;
-  showDetection();
-  originPromise = runOrigin();
+  originText = 'non vérifiée';
+  sw = null;
+  $('detectCard').classList.remove('hidden');
+  $('vSize').textContent = T('bytes', nf(bytes.length));
+  $('vSw').innerHTML = badge(T('analyzing'), 'warn');
+  $('vEngine').textContent = '';
+  $('engineSel').classList.add('hidden');
+  $('vOrig').textContent = '';
+  $('origBanner').innerHTML = '';
+  $('detectBanner').innerHTML = '';
+  hideRecipes();
+  originPromise = runAnalyze();
+  await originPromise;
 }
 
-// --- Reconnaissance lecture d'origine (refs/origin.json, voir src/origin.js) ---
-const defCache = {};
-const loadDef = (d) => (defCache[d] ??= fetch(`defs/${d}.json`).then((r) => r.json()));
-
-async function runOrigin() {
+// --- Analyse sur le serveur : version SW, base moteur, lecture d'origine ---
+async function runAnalyze() {
   const token = ++originToken;
-  if (!sw || sw.status !== 'known') return;
   let res;
   try {
-    res = await checkOrigin(bytes, sw.software);
-    const def = sw.variants[0];
-    // Patchs des recettes deja presents dans le fichier (tous les octets "apres" en place).
-    const recs = await catalogue;
-    res.recipePatches = recs.filter((r) => r.patch && r.software.includes(def)
-      && r.patch.some(([, b, a]) => b !== a) && r.patch.every(([o, , a]) => bytes[o] === a));
-    if (res.nearest && res.nearest.count) {
-      try { res.maps = changedMaps(await loadDef(def), res.nearest.offsets); } catch { /* detail facultatif */ }
-    }
-    // Calibration non reconnue : estimation par comparaison des tables d'avance / injection avec les
-    // lectures d'usine du meme SW si on en a, sinon avec celles du 430069.
-    if (res.status === 'no_ref' || res.status === 'cal_unknown') {
-      try {
-        const own = await loadDef(def);
-        res.estimate = res.status === 'cal_unknown'
-          ? await estimateOrigin(bytes, own, own, sw.software)
-          : await estimateOrigin(bytes, own, await loadDef('430069'));
-      } catch (e) { console.warn('[MS43] Estimation :', e); }
-    }
+    res = await api('/api/analyze', uploadForm());
   } catch (e) {
-    console.warn('[MS43] Verification origine :', e);
-    res = { status: 'no_ref' };
+    if (token !== originToken) return;
+    $('vSw').innerHTML = badge('—', 'err');
+    $('detectBanner').innerHTML = `<div class="banner err">${esc(e.message)}</div>`;
+    return;
   }
   if (token !== originToken) return; // un autre fichier a ete importe entre-temps
-  origin = res;
-  renderOrigin();
+  sw = res.sw;
+  engineDet = res.engine;
+  origin = res.origin;
+  originText = res.summary;
+  showDetection();
 }
 
 function originPatches(o) {
@@ -723,28 +755,8 @@ function renderOrigin() {
 }
 
 // Resume texte (FR) de l'origine, joint a la demande envoyee a AJM.
-function originSummary() {
-  const o = origin;
-  if (!o) return 'non vérifiée';
-  const verdicts = { likely_stock: 'semble d\'origine', likely_modified: 'SEMBLE MODIFIÉ', unclear: 'impossible de conclure' };
-  const estText = (e) => `estimation : ${verdicts[e.verdict]} (${e.same}/${e.compared} tables identiques à ${e.nearest}, SW ${e.refSw})`
-    + (e.tuneLike.length ? ` — tables de prépa décalées : ${e.tuneLike.join(', ')}` : '');
-  const progText = o.partial ? 'lecture partielle, programme non lu' : (o.programOk === null ? 'programme non répertorié' : '');
-  if (o.status === 'stock') return `Lecture d'origine (${o.match.label})` + (progText ? ` — ${progText}` : '');
-  if (o.status === 'no_ref') {
-    const base = `Pas de référence pour le SW ${sw.software}`;
-    return o.estimate ? `${base} — ${estText(o.estimate)}` : base + ' — non vérifiable';
-  }
-  const parts = [o.status === 'modified' ? 'MODIFIÉ : programme patché' : 'Calibration non reconnue'];
-  if (progText) parts.push(progText);
-  if (o.estimate) parts.push(estText(o.estimate));
-  const patches = originPatches(o);
-  if (patches.length) parts.push('patchs : ' + patches.join(', '));
-  if (o.match) parts.push(`calibration d'usine ${o.match.label}`);
-  if (o.nearest) parts.push(`plus proche : ${o.nearest.label}, ${o.nearest.count} octets différents`);
-  if (o.maps && o.maps.titles.length) parts.push(`cartos : ${o.maps.titles.slice(0, 30).join(', ')}${o.maps.titles.length > 30 ? '…' : ''}`);
-  return parts.join(' — ');
-}
+// (calcule par le serveur lors de l'analyse)
+function originSummary() { return originText; }
 
 const badge = (text, kind) => `<span class="tag ${kind}">${text}</span>`;
 
@@ -777,10 +789,10 @@ function showDetection() {
   const variantNote = sw.variants.length > 1 ? ` <span class="note">(${sw.variants.join(' / ')})</span>` : '';
   $('vSw').innerHTML = badge(sw.software, 'ok') + variantNote;
 
-  const engine = detectEngine(fileName);
+  const engine = engineDet;
   const sel = $('engineSel');
   const auto = engine.status === 'known' ? engine.engine : '';
-  sel.innerHTML = `<option value="">${T('engine_choose_opt')}</option>` + ENGINES.map((e) => `<option value="${e}">${e}</option>`).join('');
+  sel.innerHTML = `<option value="">${T('engine_choose_opt')}</option>` + engines.map((e) => `<option value="${e}">${e}</option>`).join('');
   sel.value = engineChoice || auto;
   sel.classList.remove('hidden');
   sel.onchange = () => { engineChoice = sel.value; buildRecipes(); };
@@ -834,7 +846,7 @@ function buildOutName(name, chosen) {
 }
 
 // ---- Pop & Bang (section parametrique) ----
-const popDescOf = (engine, def) => allRecipes.find((r) => r.type === 'pop' && r.software.includes(def) && r.engines.includes(engine));
+const popDescOf = (engine, def) => popList.find((r) => r.software.includes(def) && r.engines.includes(engine));
 function popLabel(kind, c) {
   if (kind === 'agg') return c.deg + '°';
   if (kind === 'rpm') return c.rpm + T('pop_unit_rpm');
@@ -871,18 +883,16 @@ function popSectionHtml(desc) {
       ${opts}
     </div></section>`;
 }
-// Construit la recette pop concrete a partir des choix (ecritures de cellules a valeur brute).
+// Nom et tag du Pop & Bang choisi ; les valeurs sont calculees par le serveur a partir des crans.
 function buildPopRecipe(desc, engine, def) {
   const agg = desc.agg.crans[popState.agg], rpm = desc.rpm.crans[popState.rpm], dur = desc.dur.crans[popState.dur];
-  const writes = [];
-  desc.agg.maps.forEach((m) => writes.push({ map: m, cells: desc.agg.cells, raw: agg.raw }));
-  (popState.ac === 'clim' ? desc.rpm.mapAc : desc.rpm.mapAll).forEach((m) => writes.push({ map: m, cells: desc.rpm.cells, raw: rpm.raw }));
-  desc.dur.maps.forEach((m) => writes.push({ map: m, raw: dur.raw, floor: true })); // duree : plancher (jamais raccourci)
+  const writes = null;
   const durTxt = dur.inf ? T('pop_inf') : (dur.sec + T('pop_unit_s'));
   const acTxt = popState.ac === 'clim' ? T('pop_ac_clim') : T('pop_ac_all');
   const name = `Pop & Bang (${agg.deg}°, ${rpm.rpm}${T('pop_unit_rpm')}, ${durTxt}, ${acTxt})`;
   const tag = `PopBang_${agg.deg}deg_${rpm.rpm}tr_${dur.inf ? 'inf' : dur.sec + 's'}${popState.ac === 'clim' ? '_Clim' : ''}`;
-  return { id: 'pop_bang', name, software: [def], engines: [engine], writes, tag };
+  return { id: 'pop_bang', type: 'pop', name, software: [def], engines: [engine], writes, tag,
+    choice: { agg: popState.agg, rpm: popState.rpm, dur: popState.dur, ac: popState.ac } };
 }
 
 // Selecteur Off/On d'une recette (case cachee = etat reel lu par "Appliquer").
@@ -893,7 +903,7 @@ function segSingle(i, on) {
     </div><input type="checkbox" class="hidden" value="${i}"${on ? ' checked' : ''}>`;
 }
 function singleHtml(r, i, was) {
-  const meta = r.patch ? T('patch_count', r.patch.length) : T('maps_count', r.writes.length);
+  const meta = r.kind === 'patch' ? T('patch_count', r.count) : T('maps_count', r.count);
   return `<div class="mod">
       <div class="mod-head"><span class="mod-name">${esc(recName(r))}</span><span class="mod-desc">${esc(recDesc(r))}</span><span class="mod-meta">${meta}</span></div>
       ${segSingle(i, was.has(String(i)))}
@@ -919,7 +929,10 @@ async function buildRecipes() {
   const engine = $('engineSel').value;
   const def = sw.variants[0];
   const box = $('recipes');
-  allRecipes = await catalogue;
+  try { allRecipes = await getCatalogue(); } catch (e) {
+    $('recipesCard').classList.remove('hidden');
+    $('recipesInfo').innerHTML = badge(esc(e.message), 'err'); box.innerHTML = ''; $('apply').disabled = true; return;
+  }
 
   // Preserve les choix lors d'un re-rendu (ex. changement de langue), par index.
   const was = new Set([...box.querySelectorAll('input:checked')].map((c) => c.value));
@@ -1052,14 +1065,20 @@ $('apply').addEventListener('click', async () => {
     }
   }
   try {
-    const fullDef = await (await fetch(`defs/${def}.json`)).json();
-    const result = applyRecipes(bytes, fullDef, engine, chosen);
+    $('applyMsg').innerHTML = badge(T('applying'), 'warn');
+    const pop = chosen.find((r) => r.type === 'pop');
+    const result = await api('/api/apply', uploadForm({
+      engine,
+      keys: JSON.stringify(chosen.filter((r) => r.type !== 'pop').map((r) => r.key)),
+      pop: pop ? JSON.stringify(pop.choice) : '',
+    }));
+    result.bytes = Uint8Array.from(atob(result.file), (c) => c.charCodeAt(0));
     lastOutput = result.bytes;
     lastResult = result; lastEngine = engine;
     outName = buildOutName(fileName, chosen); // nom = origine + AJM + modifs choisies
     showReport(result, engine);
     download(result.bytes);
-    $('applyMsg').innerHTML = badge(mode === 'admin' ? T('applied_detail', result.changes.length) : T('applied_ok'), 'ok');
+    $('applyMsg').innerHTML = badge(mode === 'admin' ? T('applied_detail', result.total) : T('applied_ok'), 'ok');
 
     // Mode client uniquement : enregistre la demande en local + envoie l'original à AJM.
     if (mode === 'client') {
@@ -1087,12 +1106,13 @@ function showReport(result, engine) {
   if (mode === 'admin') {
     // Mode admin : rapport détaillé, cartographie par cartographie.
     const fmt = (v) => (Number.isInteger(v) ? v : Number(v.toFixed(3)));
-    const rounded = result.rounded.length
-      ? `<div class="banner warn">${T('rounded', result.rounded.length)}</div>` : '';
-    const rows = result.changes.slice(0, 50).map((c) =>
+    const changes = result.changes || [];
+    const rounded = result.rounded
+      ? `<div class="banner warn">${T('rounded', result.rounded)}</div>` : '';
+    const rows = changes.slice(0, 50).map((c) =>
       `<div class="change"><span>${esc(c.map)}[${c.index}]</span><span>${fmt(c.before)} → ${fmt(c.after)} ${esc(c.units || '')}</span></div>`).join('');
-    const more = result.changes.length > 50 ? `<div class="note" style="margin-top:6px">${T('more', result.changes.length - 50)}</div>` : '';
-    $('reportBody').innerHTML = `<p>${T('report_line', engine, result.changes.length)}</p>${rounded}${rows}${more}`;
+    const more = result.total > 50 ? `<div class="note" style="margin-top:6px">${T('more', result.total - 50)}</div>` : '';
+    $('reportBody').innerHTML = `<p>${T('report_line', engine, result.total)}</p>${rounded}${rows}${more}`;
   } else {
     // Mode client : pas de détail, juste une confirmation.
     $('reportBody').innerHTML = `<p>${T('done_msg')}</p>`;
