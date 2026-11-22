@@ -2,7 +2,7 @@
     {
         "id":  "thermostat_90",
         "name":  "Thermostat 90 C",
-        "description":  "Abaisse la consigne de temperature du thermostat electrique a 90 C (valeurs copiees du B30).",
+        "description":  "Abaisse la consigne de temperature du thermostat electrique a 90 C.",
         "software":  [
                          "430037",
                          "430055",
